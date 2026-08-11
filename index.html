@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>9x9 Triangle Grid Game</title>
+    <style>
+        :root {
+            --bg-color: #1a1a24;
+            --panel-bg: #262636;
+            --accent-color: #4f46e5;
+            --accent-hover: #4338ca;
+            --text-color: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #ffffff;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+            background: var(--panel-bg);
+            padding: 12px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        select, button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #374151;
+            background-color: #1f2937;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        select:focus, button:focus {
+            outline: 2px solid var(--accent-color);
+        }
+
+        button {
+            background-color: var(--accent-color);
+            border: none;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .scoreboard {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 500px;
+            justify-content: space-between;
+        }
+
+        .score-card {
+            flex: 1;
+            background: var(--panel-bg);
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            border: 2px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        .score-card.active {
+            border-color: #10b981;
+        }
+
+        .circle-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        }
+
+        .circle-white {
+            background: #ffffff;
+            border: 1px solid #d1d5db;
+        }
+
+        .circle-black {
+            background: #111827;
+            border: 1px solid #4b5563;
+        }
+
+        .score-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .score-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        .score-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .game-container {
+            position: relative;
+            background: var(--panel-bg);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        canvas {
+            background-color: #06b6d4;
+            border-radius: 6px;
+            display: block;
+            cursor: pointer;
+        }
+
+        .status-msg {
+            margin-top: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            height: 24px;
+            color: #38bdf8;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Grid Navigator</h1>
+
+    <div class="controls">
+        <label for="gameMode">Game Mode:</label>
+        <select id="gameMode">
+            <option value="HH">Human vs Human</option>
+            <option value="HA">Human vs AI</option>
+            <option value="AH">AI vs Human</option>
+            <option value="AA">AI vs AI</option>
+        </select>
+
+        <button id="restartBtn">New Game</button>
+    </div>
+
+    <div class="scoreboard">
+        <div class="score-card" id="cardP1">
+            <span class="circle-icon circle-white"></span>
+            <div class="score-info">
+                <span class="score-label" id="labelP1">Player 1 (White)</span>
+                <span class="score-value" id="scoreWhite">0</span>
+            </div>
+        </div>
+        <div class="score-card" id="cardP2">
+            <span class="circle-icon circle-black"></span>
+            <div class="score-info">
+                <span class="score-label" id="labelP2">Player 2 (Black)</span>
+                <span class="score-value" id="scoreBlack">0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-container">
+        <canvas id="gameCanvas" width="504" height="504"></canvas>
+    </div>
+
+    <div class="status-msg" id="statusMsg">Game in progress...</div>
+
+<script>
+const AudioSys = {
+    ctx: null,
+    init() {
+        if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    },
+    playMoveSound() {
+        this.init();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+    },
+    playWinSound() {
+        this.init();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.1);
+            gain.gain.setValueAtTime(0.2, this.ctx.currentTime + idx * 0.1);
+            gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.1 + 0.2);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + idx * 0.1);
+            osc.stop(this.ctx.currentTime + idx * 0.1 + 0.2);
+        });
+    }
+};
+
+const GRID_SIZE = 9;
+const CELL_SIZE = 56;
+const BOARD_COLOR = "#06b6d4";
+const GRID_LINE_COLOR = "#0891b2";
+const GREY_SQUARE_COLOR = "#64748b";
+
+const GREY_SQUARES = new Set([
+    "1,1", "1,4", "1,7",
+    "4,1", "4,4", "4,7",
+    "7,1", "7,4", "7,7"
+]);
+
+function isGrey(r, c) {
+    return GREY_SQUARES.has(`${r},${c}`);
+}
+
+class GameState {
+    constructor() {
+        this.board = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
+
+        const greyList = Array.from(GREY_SQUARES).map(s => s.split(',').map(Number));
+        const [startR, startC] = greyList[Math.floor(Math.random() * greyList.length)];
+
+        this.triR = startR;
+        this.triC = startC;
+        this.triDir = 'UP';
+        this.currentPlayer = 1;
+        this.whiteCount = 0;
+        this.blackCount = 0;
+        this.isGameOver = false;
+        this.validMoves = [];
+        this.updateValidMoves();
+    }
+
+    clone() {
+        const copy = new GameState();
+        copy.board = this.board.map(row => [...row]);
+        copy.triR = this.triR;
+        copy.triC = this.triC;
+        copy.triDir = this.triDir;
+        copy.currentPlayer = this.currentPlayer;
+        copy.whiteCount = this.whiteCount;
+        copy.blackCount = this.blackCount;
+        copy.isGameOver = this.isGameOver;
+        copy.validMoves = [...this.validMoves];
+        return copy;
+    }
+
+    getValidMoves() {
+        const moves = [];
+        const dirs = [
+            { dir: 'UP', dr: -1, dc: 0 },
+            { dir: 'DOWN', dr: 1, dc: 0 },
+            { dir: 'LEFT', dr: 0, dc: -1 },
+            { dir: 'RIGHT', dr: 0, dc: 1 }
+        ];
+
+        for (const { dir, dr, dc } of dirs) {
+            for (let dist = 1; dist <= 3; dist++) {
+                const nr = this.triR + dr * dist;
+                const nc = this.triC + dc * dist;
+
+                if (nr < 0 || nr >= GRID_SIZE || nc < 0 || nc >= GRID_SIZE) break;
+                if (this.board[nr][nc] !== null) break;
+                if (isGrey(nr, nc)) break;
+
+                moves.push({ r: nr, c: nc, dir: dir, dr: dr, dc: dc, dist: dist });
+            }
+        }
+        return moves;
+    }
+
+    updateValidMoves() {
+        this.validMoves = this.getValidMoves();
+        if (this.validMoves.length === 0) {
+            this.isGameOver = true;
+        }
+    }
+
+    makeMove(move) {
+        const { r, c, dir, dr, dc, dist } = move;
+        const color = this.currentPlayer === 1 ? 'W' : 'B';
+        let circlesPlaced = 0;
+
+        // 1. Departed Square: Only score & circle if NOT an initial grey square
+        if (!isGrey(this.triR, this.triC) && this.board[this.triR][this.triC] === null) {
+            this.board[this.triR][this.triC] = color;
+            circlesPlaced++;
+        }
+
+        // 2. Intermediate path cells (step < dist)
+        for (let step = 1; step < dist; step++) {
+            const pathR = this.triR + dr * step;
+            const pathC = this.triC + dc * step;
+            if (this.board[pathR][pathC] === null) {
+                this.board[pathR][pathC] = color;
+                circlesPlaced++;
+            }
+        }
+
+        // 3. Destination (r, c): Triangle moves here, remains unscored & uncircled until departure on a future turn
+        if (this.currentPlayer === 1) this.whiteCount += circlesPlaced;
+        else this.blackCount += circlesPlaced;
+
+        this.triR = r;
+        this.triC = c;
+        this.triDir = dir;
+        this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+
+        this.updateValidMoves();
+    }
+}
+
+class MCTSNode {
+    constructor(state, parent = null, move = null) {
+        this.state = state;
+        this.parent = parent;
+        this.move = move;
+        this.children = [];
+        this.visits = 0;
+        this.wins = 0;
+        this.untriedMoves = [...state.validMoves];
+    }
+
+    isFullyExpanded() {
+        return this.untriedMoves.length === 0;
+    }
+
+    bestChild(cParam = 1.414) {
+        return this.children.reduce((best, child) => {
+            const uctValue = (child.wins / child.visits) + 
+                cParam * Math.sqrt(Math.log(this.visits) / child.visits);
+            return uctValue > best.value ? { node: child, value: uctValue } : best;
+        }, { node: null, value: -Infinity }).node;
+    }
+}
+
+function runMCTS(rootState, maxIterations = 800) {
+    const root = new MCTSNode(rootState.clone());
+    const aiPlayer = rootState.currentPlayer;
+
+    for (let i = 0; i < maxIterations; i++) {
+        let node = root;
+
+        while (node.isFullyExpanded() && node.children.length > 0) {
+            node = node.bestChild();
+        }
+
+        if (!node.state.isGameOver && node.untriedMoves.length > 0) {
+            const moveIdx = Math.floor(Math.random() * node.untriedMoves.length);
+            const move = node.untriedMoves.splice(moveIdx, 1)[0];
+            const nextState = node.state.clone();
+            nextState.makeMove(move);
+            const childNode = new MCTSNode(nextState, node, move);
+            node.children.push(childNode);
+            node = childNode;
+        }
+
+        let simState = node.state.clone();
+        while (!simState.isGameOver) {
+            const moves = simState.validMoves;
+            const randomMove = moves[Math.floor(Math.random() * moves.length)];
+            simState.makeMove(randomMove);
+        }
+
+        let result = 0;
+        if (simState.whiteCount !== simState.blackCount) {
+            const winner = simState.whiteCount > simState.blackCount ? 1 : 2;
+            result = (winner === aiPlayer) ? 1 : 0;
+        } else {
+            result = 0.5;
+        }
+
+        while (node !== null) {
+            node.visits++;
+            node.wins += result;
+            node = node.parent;
+        }
+    }
+
+    const bestNode = root.children.reduce((best, child) => 
+        child.visits > best.visits ? child : best, root.children[0]);
+
+    return bestNode ? bestNode.move : null;
+}
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const gameModeSelect = document.getElementById('gameMode');
+const restartBtn = document.getElementById('restartBtn');
+const scoreWhiteEl = document.getElementById('scoreWhite');
+const scoreBlackEl = document.getElementById('scoreBlack');
+const cardP1 = document.getElementById('cardP1');
+const cardP2 = document.getElementById('cardP2');
+const labelP1 = document.getElementById('labelP1');
+const labelP2 = document.getElementById('labelP2');
+const statusMsg = document.getElementById('statusMsg');
+
+let state = new GameState();
+let isAiThinking = false;
+let isAnimating = false;
+
+function updateUI() {
+    scoreWhiteEl.textContent = state.whiteCount;
+    scoreBlackEl.textContent = state.blackCount;
+
+    const mode = gameModeSelect.value;
+    if (mode === 'HH') {
+        labelP1.textContent = "Player 1 (White)";
+        labelP2.textContent = "Player 2 (Black)";
+    } else if (mode === 'HA') {
+        labelP1.textContent = "Human (White)";
+        labelP2.textContent = "AI (Black)";
+    } else if (mode === 'AH') {
+        labelP1.textContent = "AI (White)";
+        labelP2.textContent = "Human (Black)";
+    } else {
+        labelP1.textContent = "AI 1 (White)";
+        labelP2.textContent = "AI 2 (Black)";
+    }
+
+    if (state.currentPlayer === 1) {
+        cardP1.classList.add('active');
+        cardP2.classList.remove('active');
+    } else {
+        cardP2.classList.add('active');
+        cardP1.classList.remove('active');
+    }
+
+    if (state.isGameOver) {
+        cardP1.classList.remove('active');
+        cardP2.classList.remove('active');
+        if (state.whiteCount > state.blackCount) {
+            statusMsg.textContent = "Game Over - White Wins!";
+        } else if (state.blackCount > state.whiteCount) {
+            statusMsg.textContent = "Game Over - Black Wins!";
+        } else {
+            statusMsg.textContent = "Game Over - It's a Tie!";
+        }
+    } else {
+        const isAI = isCurrentPlayerAI();
+        statusMsg.textContent = isAI ? "AI is thinking..." : `Turn: Player ${state.currentPlayer}`;
+    }
+
+    if (!isAnimating) {
+        drawBoard(state.triR, state.triC, state.triDir);
+    }
+}
+
+function drawBoard(overrideR = state.triR, overrideC = state.triC, overrideDir = state.triDir) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+            const x = c * CELL_SIZE;
+            const y = r * CELL_SIZE;
+
+            if (isGrey(r, c)) {
+                ctx.fillStyle = GREY_SQUARE_COLOR;
+                ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+            } else {
+                ctx.fillStyle = BOARD_COLOR;
+                ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+            }
+
+            ctx.strokeStyle = GRID_LINE_COLOR;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+
+            const isTriangleHere = (Math.round(overrideR) === r && Math.round(overrideC) === c);
+            const cellVal = state.board[r][c];
+
+            // Draw circle if cell has been left behind (and triangle isn't currently over it)
+            if ((cellVal === 'W' || cellVal === 'B') && !isTriangleHere) {
+                ctx.beginPath();
+                ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2, CELL_SIZE * 0.35, 0, Math.PI * 2);
+                ctx.fillStyle = cellVal === 'W' ? '#ffffff' : '#111827';
+                ctx.fill();
+                ctx.strokeStyle = cellVal === 'W' ? '#cbd5e1' : '#374151';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+    }
+
+    drawTriangle(overrideR, overrideC, overrideDir);
+}
+
+function drawTriangle(r, c, dir) {
+    const cx = c * CELL_SIZE + CELL_SIZE / 2;
+    const cy = r * CELL_SIZE + CELL_SIZE / 2;
+    const size = CELL_SIZE * 0.35;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    let angle = 0;
+    if (dir === 'RIGHT') angle = Math.PI / 2;
+    if (dir === 'DOWN') angle = Math.PI;
+    if (dir === 'LEFT') angle = -Math.PI / 2;
+
+    ctx.rotate(angle);
+
+    ctx.beginPath();
+    ctx.moveTo(0, -size);
+    ctx.lineTo(size * 0.866, size * 0.866 / 2);
+    ctx.lineTo(-size * 0.866, size * 0.866 / 2);
+    ctx.closePath();
+
+    ctx.fillStyle = "#ef4444";
+    ctx.fill();
+    ctx.strokeStyle = "#b91c1c";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function animateMove(fromR, fromC, toR, toC, dir, onComplete) {
+    isAnimating = true;
+    const startTime = performance.now();
+    const duration = 200;
+
+    function frame(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+
+        const currentR = fromR + (toR - fromR) * ease;
+        const currentC = fromC + (toC - fromC) * ease;
+
+        drawBoard(currentR, currentC, dir);
+
+        if (progress < 1) {
+            requestAnimationFrame(frame);
+        } else {
+            isAnimating = false;
+            if (onComplete) onComplete();
+        }
+    }
+
+    requestAnimationFrame(frame);
+}
+
+function executeMove(chosenMove) {
+    const fromR = state.triR;
+    const fromC = state.triC;
+
+    state.makeMove(chosenMove);
+    AudioSys.playMoveSound();
+
+    animateMove(fromR, fromC, state.triR, state.triC, state.triDir, () => {
+        handleStep();
+    });
+}
+
+function isCurrentPlayerAI() {
+    const mode = gameModeSelect.value;
+    if (mode === 'AA') return true;
+    if (mode === 'HA' && state.currentPlayer === 2) return true;
+    if (mode === 'AH' && state.currentPlayer === 1) return true;
+    return false;
+}
+
+function handleStep() {
+    updateUI();
+
+    if (state.isGameOver) {
+        AudioSys.playWinSound();
+        return;
+    }
+
+    if (isCurrentPlayerAI() && !isAiThinking && !isAnimating) {
+        isAiThinking = true;
+        setTimeout(() => {
+            const move = runMCTS(state, 1000);
+            isAiThinking = false;
+            if (move) {
+                executeMove(move);
+            }
+        }, 100);
+    }
+}
+
+canvas.addEventListener('click', (e) => {
+    if (state.isGameOver || isCurrentPlayerAI() || isAiThinking || isAnimating) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const col = Math.floor(clickX / CELL_SIZE);
+    const row = Math.floor(clickY / CELL_SIZE);
+
+    const chosenMove = state.validMoves.find(m => m.r === row && m.c === col);
+    if (chosenMove) {
+        executeMove(chosenMove);
+    }
+});
+
+function resetGame() {
+    state = new GameState();
+    isAiThinking = false;
+    isAnimating = false;
+    handleStep();
+}
+
+restartBtn.addEventListener('click', resetGame);
+gameModeSelect.addEventListener('change', resetGame);
+
+resetGame();
+</script>
+</body>
+</html>
